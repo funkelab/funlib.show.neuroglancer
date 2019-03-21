@@ -1,6 +1,16 @@
-from scale_pyramid import ScalePyramid
+from .scale_pyramid import ScalePyramid
+import neuroglancer
 
-def add_layer(context, array, name, shader=None):
+def add_layer(
+        context,
+        array,
+        name,
+        opacity=None,
+        shader=None,
+        visible=True,
+        c=[0,1,2],
+        h=[0.0,0.0,1.0]):
+
     '''Add a layer to a neuroglancer context.
 
     Args:
@@ -20,10 +30,26 @@ def add_layer(context, array, name, shader=None):
 
             The name of the layer.
 
+        opacity:
+
+            A float to define the layer opacity between 0 and 1
+
         shader:
 
             A string to be used as the shader. If set to ``'rgb'``, an RGB
             shader will be used.
+
+        visible:
+
+            A bool which defines layer visibility
+
+        c (channel):
+
+            A list of ints to define which channels to use for an rgb shader
+
+        h (hue):
+
+            A list of floats to define rgb color for an rgba shader
     '''
 
     if shader == 'rgb':
@@ -31,16 +57,28 @@ def add_layer(context, array, name, shader=None):
 void main() {
     emitRGB(
         vec3(
-            toNormalized(getDataValue(0)),
-            toNormalized(getDataValue(1)),
-            toNormalized(getDataValue(2)))
+            toNormalized(getDataValue(%i)),
+            toNormalized(getDataValue(%i)),
+            toNormalized(getDataValue(%i)))
         );
-}"""
+}"""%(c[0],c[1],c[2])
+
+    elif shader == 'rgba':
+        shader="""
+void main() {
+    emitRGBA(
+        vec4(
+        %f, %f, %f,
+        toNormalized(getDataValue()))
+        );
+}"""%(h[0], h[1], h[2])
 
     kwargs = {}
 
     if shader is not None:
         kwargs['shader'] = shader
+    if opacity is not None:
+        kwargs['opacity'] = opacity
 
     is_multiscale = type(array) == list
 
@@ -66,4 +104,5 @@ void main() {
     context.layers.append(
             name=name,
             layer=layer,
+            visible=visible,
             **kwargs)
