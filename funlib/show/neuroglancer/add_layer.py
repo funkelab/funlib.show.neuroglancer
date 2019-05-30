@@ -73,6 +73,12 @@ void main() {
         );
 }"""%(h[0], h[1], h[2])
 
+    elif shader == 'mask':
+        shader="""
+void main() {
+  emitGrayscale(255.0*toNormalized(getDataValue()));
+}"""
+
     kwargs = {}
 
     if shader is not None:
