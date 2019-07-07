@@ -52,6 +52,13 @@ def add_layer(
             A list of floats to define rgb color for an rgba shader
     '''
 
+    if shader is None:
+        dims = array.roi.dims()
+        if dims < len(array.data.shape):
+            channels = array.data.shape[0]
+            if channels > 1:
+                shader = 'rgb'
+
     if shader == 'rgb':
         shader="""
 void main() {
