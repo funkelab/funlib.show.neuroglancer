@@ -52,10 +52,13 @@ def add_layer(
             A list of floats to define rgb color for an rgba shader
     '''
 
+    is_multiscale = type(array) == list
+
     if shader is None:
-        dims = array.roi.dims()
-        if dims < len(array.data.shape):
-            channels = array.data.shape[0]
+        a = array if not is_multiscale else array[0]
+        dims = a.roi.dims()
+        if dims < len(a.data.shape):
+            channels = a.data.shape[0]
             if channels > 1:
                 shader = 'rgb'
 
@@ -92,8 +95,6 @@ void main() {
         kwargs['shader'] = shader
     if opacity is not None:
         kwargs['opacity'] = opacity
-
-    is_multiscale = type(array) == list
 
     if is_multiscale:
 
