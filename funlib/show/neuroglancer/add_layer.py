@@ -8,6 +8,7 @@ def add_layer(
         opacity=None,
         shader=None,
         visible=True,
+        reversed_axes=True,
         c=[0,1,2],
         h=[0.0,0.0,1.0]):
 
@@ -89,6 +90,17 @@ void main() {
   emitGrayscale(255.0*toNormalized(getDataValue()));
 }"""
 
+    elif shader == 'heatmap':
+        shader="""
+void main() {
+    float v = toNormalized(getDataValue(0));
+    vec4 rgba = vec4(0,0,0,0);
+    if (v != 0.0) {
+        rgba = vec4(colormapJet(v), 1.0);
+    }
+    emitRGBA(rgba);
+}"""
+
     kwargs = {}
 
     if shader is not None:
@@ -101,14 +113,27 @@ void main() {
         for v in array:
             print("voxel size: ", v.voxel_size)
 
-        layer = ScalePyramid(
-            [
-                neuroglancer.LocalVolume(
-                    data=v.data,
-                    offset=v.roi.get_offset()[::-1],
-                    voxel_size=v.voxel_size[::-1])
-                for v in array
-            ])
+        if reversed_axes:
+
+            layer = ScalePyramid(
+                [
+                    neuroglancer.LocalVolume(
+                        data=v.data,
+                        offset=v.roi.get_offset()[::-1],
+                        voxel_size=v.voxel_size[::-1])
+                    for v in array
+                ])
+        else:
+
+            layer = ScalePyramid(
+                [
+                    neuroglancer.LocalVolume(
+                        data=v.data,
+                        offset=v.roi.get_offset(),
+                        voxel_size=v.voxel_size)
+                    for v in array
+                ])
+
     else:
         layer = neuroglancer.LocalVolume(
             data=array.data,
