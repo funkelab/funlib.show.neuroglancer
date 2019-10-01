@@ -9,6 +9,7 @@ def add_layer(
         shader=None,
         visible=True,
         reversed_axes=True,
+        scale_rgb=False,
         c=[0,1,2],
         h=[0.0,0.0,1.0]):
 
@@ -64,7 +65,19 @@ def add_layer(
                 shader = 'rgb'
 
     if shader == 'rgb':
-        shader="""
+        if scale_rgb:
+            shader="""
+void main() {
+    emitRGB(
+        255.0*vec3(
+            toNormalized(getDataValue(%i)),
+            toNormalized(getDataValue(%i)),
+            toNormalized(getDataValue(%i)))
+        );
+}"""%(c[0],c[1],c[2])
+
+        else:
+            shader="""
 void main() {
     emitRGB(
         vec3(
