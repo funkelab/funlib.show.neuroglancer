@@ -65,6 +65,9 @@ for f, datasets in zip(args.file, args.datasets):
             print("Didn't work, checking if this is multi-res...")
 
             scales = glob.glob(os.path.join(f, ds, 's*'))
+            if len(scales) == 0:
+                print(f"Couldn't read {ds}, skipping...")
+                continue
             print("Found scales %s" % ([
                 os.path.relpath(s, f)
                 for s in scales
@@ -77,6 +80,8 @@ for f, datasets in zip(args.file, args.datasets):
 
     with viewer.txn() as s:
         for array, dataset in zip(arrays, datasets):
+            print(array.roi)
+            print(array.voxel_size)
             add_layer(s, array, dataset)
 
 if args.graphs:
