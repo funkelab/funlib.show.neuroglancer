@@ -5,6 +5,7 @@ import glob
 import neuroglancer
 import os
 import webbrowser
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -54,6 +55,10 @@ for f, datasets in zip(args.file, args.datasets):
                 print("ROI is 4D, stripping first dimension and treat as channels")
                 a.roi = daisy.Roi(a.roi.get_begin()[1:], a.roi.get_shape()[1:])
                 a.voxel_size = daisy.Coordinate(a.voxel_size[1:])
+
+            if a.data.dtype == np.int64 or a.data.dtype == np.int16:
+                print("Converting dtype in memory...")
+                a.data = a.data[:].astype(np.uint64)
 
         except:
 
