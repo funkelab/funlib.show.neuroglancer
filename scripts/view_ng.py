@@ -50,6 +50,11 @@ for f, datasets in zip(args.file, args.datasets):
             print("Adding %s, %s" % (f, ds))
             a = daisy.open_ds(f, ds)
 
+            if a.roi.dims() == 4:
+                print("ROI is 4D, stripping first dimension and treat as channels")
+                a.roi = daisy.Roi(a.roi.get_begin()[1:], a.roi.get_shape()[1:])
+                a.voxel_size = daisy.Coordinate(a.voxel_size[1:])
+
         except:
 
             print("Didn't work, checking if this is multi-res...")
