@@ -27,6 +27,14 @@ parser.add_argument(
     nargs='+',
     action='append',
     help="The graphs in the container to show")
+parser.add_argument(
+    '--no-browser',
+    '-n',
+    type=bool,
+    nargs='?',
+    default=False,
+    const=True,
+    help="If set, do not open a browser, just pring a URL")
 
 args = parser.parse_args()
 
@@ -84,7 +92,8 @@ if args.graphs:
 
 url = str(viewer)
 print(url)
-webbrowser.open_new(url)
+if os.environ.get("DISPLAY") and not args.no_browser:
+    webbrowser.open_new(url)
 
 print("Press ENTER to quit")
 input()
