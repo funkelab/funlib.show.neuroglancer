@@ -20,6 +20,13 @@ parser.add_argument(
     nargs='+',
     action='append',
     help="The datasets in the container to show")
+parser.add_argument(
+    '--graphs',
+    '-g',
+    type=str,
+    nargs='+',
+    action='append',
+    help="The graphs in the container to show")
 
 args = parser.parse_args()
 
@@ -53,6 +60,27 @@ for f, datasets in zip(args.file, args.datasets):
     with viewer.txn() as s:
         for array, dataset in zip(arrays, datasets):
             add_layer(s, array, dataset)
+
+if args.graphs:
+    for f, graphs in zip(args.file, args.graphs):
+
+        for graph in graphs:
+
+            graph_annotations = []
+            ids = daisy.open_ds(f, graph + '-ids')
+            loc = daisy.open_ds(f, graph + '-locations')
+            for i, l in zip(ids.data, loc.data):
+                graph_annotations.append(
+                    neuroglancer.EllipsoidAnnotation(
+                        center=l[::-1],
+                        radii=(5, 5, 5),
+                        id=i))
+            graph_layer = neuroglancer.AnnotationLayer(
+                annotations=graph_annotations,
+                voxel_size=(1, 1, 1))
+
+            with viewer.txn() as s:
+                s.layers.append(name='graph', layer=graph_layer)
 
 url = str(viewer)
 print(url)
