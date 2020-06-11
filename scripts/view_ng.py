@@ -35,7 +35,7 @@ parser.add_argument(
     nargs='?',
     default=False,
     const=True,
-    help="If set, do not open a browser, just pring a URL")
+    help="If set, do not open a browser, just print a URL")
 
 args = parser.parse_args()
 
