@@ -148,10 +148,26 @@ void main() {
                 ])
 
     else:
+
+        num_spatial_dims = array.roi.dims()
+        num_channel_dims = array.n_channel_dims
+
+        names = ['z', 'y', 'x'][-num_spatial_dims:]
+        units = ['nm'] * num_spatial_dims
+        scales = array.voxel_size
+        for i in range(num_channel_dims):
+            names = [f'c{i}^'] + names
+            units = [''] + units
+            scales = (1,) + scales
+
+        dimensions = neuroglancer.CoordinateSpace(
+            names=names,
+            units='nm',
+            scales=scales)
+
         layer = neuroglancer.LocalVolume(
             data=array.data,
-            offset=array.roi.get_offset()[::-1],
-            voxel_size=array.voxel_size[::-1])
+            dimensions=dimensions)
 
     context.layers.append(
             name=name,
