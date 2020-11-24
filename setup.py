@@ -7,6 +7,10 @@ setup(
         author='Jan Funke',
         author_email='funkej@janelia.hhmi.org',
         license='MIT',
+        install_requires=[
+            'neuroglancer<2',
+            'daisy'
+        ],
         packages=[
             'funlib.show.neuroglancer'
         ],
