@@ -9,5 +9,8 @@ setup(
         license='MIT',
         packages=[
             'funlib.show.neuroglancer'
+        ],
+        scripts=[
+            'scripts/neuroglancer'
         ]
 )
