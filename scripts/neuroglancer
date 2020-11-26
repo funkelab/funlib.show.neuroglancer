@@ -44,6 +44,85 @@ args = parser.parse_args()
 neuroglancer.set_server_bind_address('0.0.0.0')
 viewer = neuroglancer.Viewer()
 
+def to_slice(slice_str):
+
+    values = [int(x) for x in slice_str.split(':')]
+    if len(values) == 1:
+        return values[0]
+
+    return slice(*values)
+
+def parse_ds_name(ds):
+
+    tokens = ds.split('[')
+
+    if len(tokens) == 1:
+        return ds, None
+
+    ds, slices = tokens
+    slices = list(map(to_slice, slices.rstrip(']').split(',')))
+
+    return ds, slices
+
+class Project:
+
+    def __init__(self, array, dim, value):
+        self.array = array
+        self.dim = dim
+        self.value = value
+        self.shape = array.shape[:self.dim] + array.shape[self.dim + 1:]
+        self.dtype = array.dtype
+
+    def __getitem__(self, key):
+        slices = key[:self.dim] + (self.value,) + key[self.dim:]
+        ret = self.array[slices]
+        return ret
+
+def slice_dataset(a, slices):
+
+    dims = a.roi.dims()
+
+    for d, s in list(enumerate(slices))[::-1]:
+
+        if isinstance(s, slice):
+            pass
+        else:
+            index = (s - a.roi.get_begin()[d])//a.voxel_size[d]
+            a.data = Project(a.data, d, index)
+            a.roi = daisy.Roi(
+                a.roi.get_begin()[:d] + a.roi.get_begin()[d + 1:],
+                a.roi.get_shape()[:d] + a.roi.get_shape()[d + 1:])
+            a.voxel_size = a.voxel_size[:d] + a.voxel_size[d + 1:]
+
+    return a
+
+def open_dataset(f, ds):
+
+    ds, slices = parse_ds_name(ds)
+    print("ds    :", ds)
+    print("slices:", slices)
+
+    a = daisy.open_ds(f, ds)
+
+    if slices is not None:
+        a = slice_dataset(a, slices)
+
+    if a.roi.dims() == 2:
+        print("ROI is 2D, recruiting next channel to z dimension")
+        a.roi = daisy.Roi((0,) + a.roi.get_begin(), (a.shape[-3],) + a.roi.get_shape())
+        a.voxel_size = daisy.Coordinate((1,) + a.voxel_size)
+
+    if a.roi.dims() == 4:
+        print("ROI is 4D, stripping first dimension and treat as channels")
+        a.roi = daisy.Roi(a.roi.get_begin()[1:], a.roi.get_shape()[1:])
+        a.voxel_size = daisy.Coordinate(a.voxel_size[1:])
+
+    if a.data.dtype == np.int64 or a.data.dtype == np.int16:
+        print("Converting dtype in memory...")
+        a.data = a.data[:].astype(np.uint64)
+
+    return a
+
 for f, datasets in zip(args.file, args.datasets):
 
     arrays = []
@@ -51,37 +130,23 @@ for f, datasets in zip(args.file, args.datasets):
         try:
 
             print("Adding %s, %s" % (f, ds))
-            a = daisy.open_ds(f, ds)
-
-            if a.roi.dims() == 2:
-                print("ROI is 2D, recruiting next channel to z dimension")
-                a.roi = daisy.Roi((0,) + a.roi.get_begin(), (a.shape[-3],) + a.roi.get_shape())
-                a.voxel_size = daisy.Coordinate((1,) + a.voxel_size)
-
-            if a.roi.dims() == 4:
-                print("ROI is 4D, stripping first dimension and treat as channels")
-                a.roi = daisy.Roi(a.roi.get_begin()[1:], a.roi.get_shape()[1:])
-                a.voxel_size = daisy.Coordinate(a.voxel_size[1:])
-
-            if a.data.dtype == np.int64 or a.data.dtype == np.int16:
-                print("Converting dtype in memory...")
-                a.data = a.data[:].astype(np.uint64)
+            a = open_dataset(f, ds)
 
         except Exception as e:
 
-            print(e)
+            print(type(e), e)
             print("Didn't work, checking if this is multi-res...")
 
             scales = glob.glob(os.path.join(f, ds, 's*'))
             if len(scales) == 0:
                 print(f"Couldn't read {ds}, skipping...")
-                continue
+                raise e
             print("Found scales %s" % ([
                 os.path.relpath(s, f)
                 for s in scales
             ],))
             a = [
-                daisy.open_ds(f, os.path.relpath(scale_ds, f))
+                open_dataset(f, os.path.relpath(scale_ds, f))
                 for scale_ds in scales
             ]
         arrays.append(a)
