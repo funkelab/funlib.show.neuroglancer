@@ -1,19 +1,21 @@
 from .scale_pyramid import ScalePyramid
 import neuroglancer
 
-def add_layer(
-        context,
-        array,
-        name,
-        opacity=None,
-        shader=None,
-        visible=True,
-        reversed_axes=True,
-        scale_rgb=False,
-        c=[0,1,2],
-        h=[0.0,0.0,1.0]):
 
-    '''Add a layer to a neuroglancer context.
+def add_layer(
+    context,
+    array,
+    name,
+    opacity=None,
+    shader=None,
+    visible=True,
+    reversed_axes=True,
+    scale_rgb=False,
+    c=[0, 1, 2],
+    h=[0.0, 0.0, 1.0],
+):
+
+    """Add a layer to a neuroglancer context.
 
     Args:
 
@@ -52,9 +54,33 @@ def add_layer(
         h (hue):
 
             A list of floats to define rgb color for an rgba shader
-    '''
+    """
 
     is_multiscale = type(array) == list
+    if not is_multiscale:
+        a = array if not is_multiscale else array[0]
+
+        spatial_dim_names = ["t", "z", "y", "x"]
+        channel_dim_names = ["b^", "c^"]
+
+        dims = len(a.data.shape)
+        spatial_dims = a.roi.dims()
+        channel_dims = dims - spatial_dims
+
+        attrs = {
+            "names": channel_dim_names[-channel_dims:]
+            if channel_dims > 0
+            else [] + spatial_dim_names[-spatial_dims:],
+            "units": [""] * channel_dims + ["nm"] * spatial_dims,
+            "scales": [1] * channel_dims + list(a.voxel_size),
+        }
+        dimensions = neuroglancer.CoordinateSpace(**attrs)
+
+        voxel_offset = [0] * channel_dims + list(a.roi.get_offset())
+    
+    else:
+        # I'm not sure what needs to be done here!
+        raise Exception("Not Implemented yet!")
 
     if shader is None:
         a = array if not is_multiscale else array[0]
@@ -150,11 +176,8 @@ void main() {
     else:
         layer = neuroglancer.LocalVolume(
             data=array.data,
-            offset=array.roi.get_offset()[::-1],
-            voxel_size=array.voxel_size[::-1])
+            voxel_offset=voxel_offset,
+            dimensions=dimensions,
+        )
 
-    context.layers.append(
-            name=name,
-            layer=layer,
-            visible=visible,
-            **kwargs)
+    context.layers.append(name=name, layer=layer, visible=visible, **kwargs)

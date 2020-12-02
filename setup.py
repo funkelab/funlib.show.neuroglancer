@@ -8,7 +8,7 @@ setup(
         author_email='funkej@janelia.hhmi.org',
         license='MIT',
         install_requires=[
-            'neuroglancer<2',
+            'neuroglancer',
             'daisy'
         ],
         packages=[
