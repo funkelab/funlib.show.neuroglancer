@@ -8,6 +8,7 @@ import neuroglancer
 import os
 import webbrowser
 import numpy as np
+import zarr
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -85,7 +86,7 @@ def slice_dataset(a, slices):
     for d, s in list(enumerate(slices))[::-1]:
 
         if isinstance(s, slice):
-            pass
+            raise NotImplementedError("Slicing not yet implemented!")
         else:
             index = (s - a.roi.get_begin()[d])//a.voxel_size[d]
             a.data = Project(a.data, d, index)
@@ -97,10 +98,20 @@ def slice_dataset(a, slices):
     return a
 
 def open_dataset(f, ds):
-
+    original_ds = ds
     ds, slices = parse_ds_name(ds)
+    slices_str = original_ds[len(ds):]
     print("ds    :", ds)
     print("slices:", slices)
+
+    try:
+        dataset_as = []
+        for key in zarr.open(f)[ds].keys():
+            dataset_as.extend(open_dataset(f, f"{ds}/{key}{slices_str}"))
+        return dataset_as
+    except AttributeError as e:
+        # dataset is an array, not a group
+        pass
 
     a = daisy.open_ds(f, ds)
 
@@ -121,7 +132,7 @@ def open_dataset(f, ds):
         print("Converting dtype in memory...")
         a.data = a.data[:].astype(np.uint64)
 
-    return a
+    return [(a, ds)]
 
 for f, datasets in zip(args.file, args.datasets):
 
@@ -130,7 +141,7 @@ for f, datasets in zip(args.file, args.datasets):
         try:
 
             print("Adding %s, %s" % (f, ds))
-            a = open_dataset(f, ds)
+            dataset_as = open_dataset(f, ds)
 
         except Exception as e:
 
@@ -149,10 +160,11 @@ for f, datasets in zip(args.file, args.datasets):
                 open_dataset(f, os.path.relpath(scale_ds, f))
                 for scale_ds in scales
             ]
-        arrays.append(a)
+        for a in dataset_as:
+            arrays.append(a)
 
     with viewer.txn() as s:
-        for array, dataset in zip(arrays, datasets):
+        for array, dataset in arrays:
             try:
                 print(array.roi)
                 print(array.voxel_size)
