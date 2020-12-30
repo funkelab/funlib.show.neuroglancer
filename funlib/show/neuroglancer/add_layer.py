@@ -75,6 +75,8 @@ def add_layer(
             "units": [""] * channel_dims + ["nm"] * spatial_dims,
             "scales": [1] * channel_dims + list(a.voxel_size),
         }
+        if reversed_axes:
+            attrs = {k: v[::-1] for k, v in attrs.items()}
         dimensions = neuroglancer.CoordinateSpace(**attrs)
 
         voxel_offset = [0] * channel_dims + list(a.roi.get_offset() / a.voxel_size)
@@ -104,7 +106,12 @@ def add_layer(
                 "units": [""] * channel_dims + ["nm"] * spatial_dims,
                 "scales": [1] * channel_dims + list(a.voxel_size),
             }
+            if reversed_axes:
+                attrs = {k: v[::-1] for k, v in attrs.items()}
             dimensions.append(neuroglancer.CoordinateSpace(**attrs))
+
+    if reversed_axes:
+        voxel_offset = voxel_offset[::-1]
 
     if shader is None:
         a = array if not is_multiscale else array[0]
@@ -188,9 +195,9 @@ void main() {
         layer = ScalePyramid(
             [
                 neuroglancer.LocalVolume(
-                    data=v.data, voxel_offset=voxel_offset, dimensions=array_dims
+                    data=a.data, voxel_offset=voxel_offset, dimensions=array_dims
                 )
-                for v, array_dims in zip(array, dimensions)
+                for a, array_dims in zip(array, dimensions)
             ]
         )
 
