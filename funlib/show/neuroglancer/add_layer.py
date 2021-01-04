@@ -9,7 +9,7 @@ def add_layer(
     opacity=None,
     shader=None,
     visible=True,
-    reversed_axes=True,
+    reversed_axes=False,
     scale_rgb=False,
     c=[0, 1, 2],
     h=[0.0, 0.0, 1.0],
