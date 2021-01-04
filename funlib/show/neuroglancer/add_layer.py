@@ -86,11 +86,6 @@ def add_layer(
         voxel_offset = None
         for i, a in enumerate(array):
 
-            if voxel_offset is None:
-                voxel_offset = [0] * channel_dims + list(
-                    a.roi.get_offset() / a.voxel_size
-                )
-
             spatial_dim_names = ["t", "z", "y", "x"]
             channel_dim_names = ["b^", "c^"]
 
@@ -109,6 +104,11 @@ def add_layer(
             if reversed_axes:
                 attrs = {k: v[::-1] for k, v in attrs.items()}
             dimensions.append(neuroglancer.CoordinateSpace(**attrs))
+
+            if voxel_offset is None:
+                voxel_offset = [0] * channel_dims + list(
+                    a.roi.get_offset() / a.voxel_size
+                )
 
     if reversed_axes:
         voxel_offset = voxel_offset[::-1]
