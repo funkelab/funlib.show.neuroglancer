@@ -145,6 +145,7 @@ def open_dataset(f, ds):
     else:
         return [([daisy.open_ds(f, f"{ds}/{key}") for key in zarr.open(f)[ds].keys()], ds)]
 
+viewer_dims = None
 for f, datasets in zip(args.file, args.datasets):
 
     arrays = []
@@ -176,7 +177,9 @@ for f, datasets in zip(args.file, args.datasets):
 
     with viewer.txn() as s:
         for array, dataset in arrays:
-            add_layer(s, array, dataset)
+            dims = add_layer(s, array, dataset)
+            if viewer_dims is None:
+                viewer_dims = dims
 
 if args.graphs:
     for f, graphs in zip(args.file, args.graphs):
@@ -208,6 +211,19 @@ if args.graphs:
 
             with viewer.txn() as s:
                 s.layers.append(name='graph', layer=graph_layer)
+
+with viewer.txn() as s:
+    # Need to get viewer dims from `add_layer` since I cannot
+    # seem to find a coordinate space anywhere in s. The
+    # layer that was appended to `s.layers` seems to have
+    # changed from a LocalVolume to a ManagedLayer and does
+    # not have its dimensions stored anymore.
+    viewer_dims = neuroglancer.CoordinateSpace(
+        names=viewer_dims.names[::-1],
+        scales=viewer_dims.scales[::-1],
+        units=viewer_dims.units[::-1],
+    )
+    s.dimensions = viewer_dims
 
 url = str(viewer)
 print(url)

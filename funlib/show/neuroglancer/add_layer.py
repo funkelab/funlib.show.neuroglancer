@@ -209,3 +209,4 @@ void main() {
         )
 
     context.layers.append(name=name, layer=layer, visible=visible, **kwargs)
+    return layer.dimensions
