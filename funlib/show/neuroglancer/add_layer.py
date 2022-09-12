@@ -2,18 +2,133 @@ from .scale_pyramid import ScalePyramid
 import neuroglancer
 
 
+rgb_shader_code = '''
+void main() {
+    emitRGB(
+        %f*vec3(
+            toNormalized(getDataValue(%i)),
+            toNormalized(getDataValue(%i)),
+            toNormalized(getDataValue(%i)))
+        );
+}'''
+
+color_shader_code = '''
+void main() {
+    emitRGBA(
+        vec4(
+        %f, %f, %f,
+        toNormalized(getDataValue()))
+        );
+}'''
+
+binary_shader_code = '''
+void main() {
+  emitGrayscale(255.0*toNormalized(getDataValue()));
+}'''
+
+heatmap_shader_code = '''
+void main() {
+    float v = toNormalized(getDataValue(0));
+    vec4 rgba = vec4(0,0,0,0);
+    if (v != 0.0) {
+        rgba = vec4(colormapJet(v), 1.0);
+    }
+    emitRGBA(rgba);
+}'''
+
+
+def parse_dims(array):
+
+    if type(array) == list:
+        array = array[0]
+
+    dims = len(array.data.shape)
+    spatial_dims = array.roi.dims()
+    channel_dims = dims - spatial_dims
+
+    print("dims        :", dims)
+    print("spatial dims:", spatial_dims)
+    print("channel dims:", channel_dims)
+
+    return dims, spatial_dims, channel_dims
+
+
+def create_coordinate_space(array, spatial_dim_names, channel_dim_names, unit):
+
+    dims, spatial_dims, channel_dims = parse_dims(array)
+    assert spatial_dims > 0
+
+    if channel_dims > 0:
+        channel_names = channel_dim_names[-channel_dims:]
+    else:
+        channel_names = []
+    spatial_names = spatial_dim_names[-spatial_dims:]
+    names = channel_names + spatial_names
+    units = [""] * channel_dims + [unit] * spatial_dims
+    scales = [1] * channel_dims + list(array.voxel_size)
+
+    print("Names    :", names)
+    print("Units    :", units)
+    print("Scales   :", scales)
+
+    return neuroglancer.CoordinateSpace(
+        names=names,
+        units=units,
+        scales=scales)
+
+
+def create_shader_code(
+        shader,
+        channel_dims,
+        rgb_channels=None,
+        color=None,
+        scale_factor=1.0):
+
+    if shader is None:
+        if channel_dims > 1:
+            shader = 'rgb'
+        else:
+            return None
+
+    if rgb_channels is None:
+        rgb_channels = [0, 1, 2]
+
+    if shader == 'rgb':
+        return rgb_shader_code % (
+            scale_factor,
+            rgb_channels[0],
+            rgb_channels[1],
+            rgb_channels[2])
+
+    if shader == 'color':
+        assert color is not None, \
+            "You have to pass argument 'color' to use the color shader"
+        return color_shader_code % (
+            color[0],
+            color[1],
+            color[2],
+        )
+
+    if shader == 'binary':
+        return binary_shader_code
+
+    if shader == 'heatmap':
+        return heatmap_shader_code
+
+
 def add_layer(
-    context,
-    array,
-    name,
-    opacity=None,
-    shader=None,
-    visible=True,
-    reversed_axes=False,
-    scale_rgb=False,
-    c=[0, 1, 2],
-    h=[0.0, 0.0, 1.0],
-):
+        context,
+        array,
+        name,
+        spatial_dim_names=None,
+        channel_dim_names=None,
+        opacity=None,
+        shader=None,
+        rgb_channels=None,
+        color=None,
+        visible=True,
+        value_scale_factor=1.0,
+        units='nm'):
 
     """Add a layer to a neuroglancer context.
 
@@ -34,178 +149,129 @@ def add_layer(
 
             The name of the layer.
 
+        spatial_dim_names:
+
+            The names of the spatial dimensions. Defaults to ``['t', 'z', 'y',
+            'x']``. The last elements of this list will be used (e.g., if your
+            data is 2D, the channels will be ``['y', 'x']``).
+
+        channel_dim_names:
+
+            The names of the non-spatial (channel) dimensions. Defaults to
+            ``['b^', 'c^']``.  The last elements of this list will be used
+            (e.g., if your data is 2D but the shape of the array is 3D, the
+            channels will be ``['c^']``).
+
         opacity:
 
-            A float to define the layer opacity between 0 and 1
+            A float to define the layer opacity between 0 and 1.
 
         shader:
 
-            A string to be used as the shader. If set to ``'rgb'``, an RGB
-            shader will be used.
+            A string to be used as the shader. Possible values are:
+
+                None     :  neuroglancer's default shader
+                'rgb'    :  An RGB shader on dimension `'c^'`. See argument
+                            ``rgb_channels``.
+                'color'  :  Shows intensities as a constant color. See argument
+                            ``color``.
+                'binary' :  Shows a binary image as black/white.
+                'heatmap':  Shows an intensity image as a jet color map.
+
+        rgb_channels:
+
+            Which channels to use for RGB (default is ``[0, 1, 2]``).
+
+        color:
+
+            A list of floats representing the RGB values for the constant color
+            shader.
 
         visible:
 
-            A bool which defines layer visibility
+            A bool which defines the initial layer visibility.
 
-        c (channel):
+        value_scale_factor:
 
-            A list of ints to define which channels to use for an rgb shader
+            A float to scale array values with for visualization.
 
-        h (hue):
+        units:
 
-            A list of floats to define rgb color for an rgba shader
+            The units used for resolution and offset.
     """
+
+    if channel_dim_names is None:
+        channel_dim_names = ["b", "c^"]
+    if spatial_dim_names is None:
+        spatial_dim_names = ["t", "z", "y", "x"]
+
+    if rgb_channels is None:
+        rgb_channels = [0, 1, 2]
 
     is_multiscale = type(array) == list
 
-    if not is_multiscale:
-
-        a = array if not is_multiscale else array[0]
-
-        spatial_dim_names = ["t", "z", "y", "x"]
-        channel_dim_names = ["b^", "c^"]
-
-        dims = len(a.data.shape)
-        spatial_dims = a.roi.dims()
-        channel_dims = dims - spatial_dims
-
-        attrs = {
-            "names": (channel_dim_names[-channel_dims:] if channel_dims > 0 else [])
-            + spatial_dim_names[-spatial_dims:],
-            "units": [""] * channel_dims + ["nm"] * spatial_dims,
-            "scales": [1] * channel_dims + list(a.voxel_size),
-        }
-        if reversed_axes:
-            attrs = {k: v[::-1] for k, v in attrs.items()}
-        dimensions = neuroglancer.CoordinateSpace(**attrs)
-
-        voxel_offset = [0] * channel_dims + list(a.roi.get_offset() / a.voxel_size)
-
-    else:
-        dimensions = []
-        voxel_offset = None
-        for i, a in enumerate(array):
-
-            spatial_dim_names = ["t", "z", "y", "x"]
-            channel_dim_names = ["b^", "c^"]
-
-            dims = len(a.data.shape)
-            spatial_dims = a.roi.dims()
-            channel_dims = dims - spatial_dims
-
-            attrs = {
-                "names": (channel_dim_names[-channel_dims:] if channel_dims > 0 else [])
-                + spatial_dim_names[-spatial_dims:]
-                if spatial_dims > 0
-                else [],
-                "units": [""] * channel_dims + ["nm"] * spatial_dims,
-                "scales": [1] * channel_dims + list(a.voxel_size),
-            }
-            if reversed_axes:
-                attrs = {k: v[::-1] for k, v in attrs.items()}
-            dimensions.append(neuroglancer.CoordinateSpace(**attrs))
-
-            if voxel_offset is None:
-                voxel_offset = [0] * channel_dims + list(
-                    a.roi.get_offset() / a.voxel_size
-                )
-
-    if reversed_axes:
-        voxel_offset = voxel_offset[::-1]
-
-    if shader is None:
-        a = array if not is_multiscale else array[0]
-        dims = a.roi.dims()
-        if dims < len(a.data.shape):
-            channels = a.data.shape[0]
-            if channels > 1:
-                shader = "rgb"
-
-    if shader == "rgb":
-        if scale_rgb:
-            shader = """
-void main() {
-    emitRGB(
-        255.0*vec3(
-            toNormalized(getDataValue(%i)),
-            toNormalized(getDataValue(%i)),
-            toNormalized(getDataValue(%i)))
-        );
-}""" % (
-                c[0],
-                c[1],
-                c[2],
-            )
-
-        else:
-            shader = """
-void main() {
-    emitRGB(
-        vec3(
-            toNormalized(getDataValue(%i)),
-            toNormalized(getDataValue(%i)),
-            toNormalized(getDataValue(%i)))
-        );
-}""" % (
-                c[0],
-                c[1],
-                c[2],
-            )
-
-    elif shader == "rgba":
-        shader = """
-void main() {
-    emitRGBA(
-        vec4(
-        %f, %f, %f,
-        toNormalized(getDataValue()))
-        );
-}""" % (
-            h[0],
-            h[1],
-            h[2],
-        )
-
-    elif shader == "mask":
-        shader = """
-void main() {
-  emitGrayscale(255.0*toNormalized(getDataValue()));
-}"""
-
-    elif shader == "heatmap":
-        shader = """
-void main() {
-    float v = toNormalized(getDataValue(0));
-    vec4 rgba = vec4(0,0,0,0);
-    if (v != 0.0) {
-        rgba = vec4(colormapJet(v), 1.0);
-    }
-    emitRGBA(rgba);
-}"""
-
-    kwargs = {}
-
-    if shader is not None:
-        kwargs["shader"] = shader
-    if opacity is not None:
-        kwargs["opacity"] = opacity
+    dims, spatial_dims, channel_dims = parse_dims(array)
 
     if is_multiscale:
+
+        dimensions = []
+        for a in array:
+            dimensions.append(
+                create_coordinate_space(
+                    a,
+                    spatial_dim_names,
+                    channel_dim_names,
+                    units))
+
+        # why only one offset, shouldn't that be a list?
+        voxel_offset = [0] * channel_dims + \
+            list(array[0].roi.get_offset() / array[0].voxel_size)
 
         layer = ScalePyramid(
             [
                 neuroglancer.LocalVolume(
-                    data=a.data, voxel_offset=voxel_offset, dimensions=array_dims
+                    data=a.data,
+                    voxel_offset=voxel_offset,
+                    dimensions=array_dims
                 )
                 for a, array_dims in zip(array, dimensions)
             ]
         )
 
     else:
+
+        voxel_offset = [0] * channel_dims + \
+                list(array.roi.get_offset() / array.voxel_size)
+
+        dimensions = create_coordinate_space(
+            array,
+            spatial_dim_names,
+            channel_dim_names,
+            units)
+
         layer = neuroglancer.LocalVolume(
             data=array.data,
             voxel_offset=voxel_offset,
             dimensions=dimensions,
         )
 
-    context.layers.append(name=name, layer=layer, visible=visible, **kwargs)
+    shader_code = create_shader_code(
+        shader,
+        channel_dims,
+        rgb_channels,
+        color,
+        value_scale_factor)
+
+    if shader_code is None:
+        context.layers.append(
+            name=name,
+            layer=layer,
+            visible=visible,
+            opacity=opacity)
+    else:
+        context.layers.append(
+            name=name,
+            layer=layer,
+            visible=visible,
+            shader=shader_code,
+            opacity=opacity)

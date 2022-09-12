@@ -127,16 +127,6 @@ def open_dataset(f, ds):
         if slices is not None:
             a = slice_dataset(a, slices)
 
-        if a.roi.dims() == 2:
-            print("ROI is 2D, recruiting next channel to z dimension")
-            a.roi = daisy.Roi((0,) + a.roi.get_begin(), (a.shape[-3],) + a.roi.get_shape())
-            a.voxel_size = daisy.Coordinate((1,) + a.voxel_size)
-
-        if a.roi.dims() == 4:
-            print("ROI is 4D, stripping first dimension and treat as channels")
-            a.roi = daisy.Roi(a.roi.get_begin()[1:], a.roi.get_shape()[1:])
-            a.voxel_size = daisy.Coordinate(a.voxel_size[1:])
-
         if a.data.dtype == np.int64 or a.data.dtype == np.int16:
             print("Converting dtype in memory...")
             a.data = a.data[:].astype(np.uint64)
