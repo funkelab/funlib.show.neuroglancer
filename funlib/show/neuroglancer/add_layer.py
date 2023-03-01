@@ -262,16 +262,30 @@ def add_layer(
         color,
         value_scale_factor)
 
-    if shader_code is None:
-        context.layers.append(
-            name=name,
-            layer=layer,
-            visible=visible,
-            opacity=opacity)
+    if opacity is not None:
+        if shader_code is None:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible,
+                opacity=opacity)
+        else:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible,
+                shader=shader_code,
+                opacity=opacity)
     else:
-        context.layers.append(
-            name=name,
-            layer=layer,
-            visible=visible,
-            shader=shader_code,
-            opacity=opacity)
+        if shader_code is None:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible)
+        else:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible,
+                shader=shader_code)
+
