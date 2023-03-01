@@ -9,9 +9,9 @@ setup(
         license='MIT',
         install_requires=[
             'neuroglancer',
-            'daisy',
             'numpy',
             'zarr',
+            'daisy>=1.0',
             'funlib.geometry>=0.1',
             'funlib.persistence @ git+https://github.com/funkelab/funlib.persistence'
         ],
