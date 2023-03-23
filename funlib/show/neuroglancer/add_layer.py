@@ -43,7 +43,7 @@ def parse_dims(array):
         array = array[0]
 
     dims = len(array.data.shape)
-    spatial_dims = array.roi.dims()
+    spatial_dims = array.roi.dims
     channel_dims = dims - spatial_dims
 
     print("dims        :", dims)
@@ -225,7 +225,7 @@ def add_layer(
 
         # why only one offset, shouldn't that be a list?
         voxel_offset = [0] * channel_dims + \
-            list(array[0].roi.get_offset() / array[0].voxel_size)
+            list(array[0].roi.offset / array[0].voxel_size)
 
         layer = ScalePyramid(
             [
@@ -241,7 +241,7 @@ def add_layer(
     else:
 
         voxel_offset = [0] * channel_dims + \
-                list(array.roi.get_offset() / array.voxel_size)
+                list(array.roi.offset / array.voxel_size)
 
         dimensions = create_coordinate_space(
             array,
@@ -262,16 +262,30 @@ def add_layer(
         color,
         value_scale_factor)
 
-    if shader_code is None:
-        context.layers.append(
-            name=name,
-            layer=layer,
-            visible=visible,
-            opacity=opacity)
+    if opacity is not None:
+        if shader_code is None:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible,
+                opacity=opacity)
+        else:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible,
+                shader=shader_code,
+                opacity=opacity)
     else:
-        context.layers.append(
-            name=name,
-            layer=layer,
-            visible=visible,
-            shader=shader_code,
-            opacity=opacity)
+        if shader_code is None:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible)
+        else:
+            context.layers.append(
+                name=name,
+                layer=layer,
+                visible=visible,
+                shader=shader_code)
+
