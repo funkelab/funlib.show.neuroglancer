@@ -41,11 +41,19 @@ parser.add_argument(
     default=False,
     const=True,
     help="If set, do not open a browser, just print a URL")
+parser.add_argument(
+    '--port',
+    '-p',
+    type=int,
+    default=230612,
+    help="The port to bind to.")
+
 
 args = parser.parse_args()
 
-neuroglancer.set_server_bind_address('0.0.0.0')
+neuroglancer.set_server_bind_address('0.0.0.0', bind_port=args.port)
 viewer = neuroglancer.Viewer()
+
 
 def to_slice(slice_str):
 
