@@ -1,2 +1,0 @@
-neuroglancer>=2
-daisy

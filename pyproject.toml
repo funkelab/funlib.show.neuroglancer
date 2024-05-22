@@ -1,0 +1,21 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "funlib.show.neuroglancer"
+version = "0.1"
+description = ""
+readme = "README.md"
+authors = [{ name = "Jan Funke", email = "funkej@janelia.hhmi.org" }]
+license = { text = "MIT" }
+
+scripts = { neuroglancer = "funlib.show.neuroglancer.cli:main" }
+
+dependencies = [
+    "neuroglancer >= 2",
+    "numpy",
+    "zarr",
+    "funlib.geometry",
+    "funlib.persistence",
+]
