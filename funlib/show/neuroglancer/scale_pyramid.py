@@ -101,7 +101,7 @@ class ScalePyramid(neuroglancer.LocalVolume):
         relative_scale = np.array(scale) // np.array(closest_scale)
 
         return self.volume_layers[closest_scale].get_encoded_subvolume(
-            data_format, start, end, scale_key=",".join(",".join(map(str, relative_scale)))
+            data_format, start, end, scale_key=",".join(map(str, relative_scale))
         )
 
     def get_object_mesh(self, object_id):
