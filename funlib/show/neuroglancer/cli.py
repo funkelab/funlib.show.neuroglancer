@@ -136,30 +136,34 @@ def main():
 
     neuroglancer.set_server_bind_address(args.bind_address, bind_port=args.port)
     viewer = neuroglancer.Viewer()
-    for ds_path in chain(*[glob.glob(path) for path in args.paths]):
-        arrays = []
-        try:
-            print("Adding %s" % (ds_path))
-            dataset_as = open_dataset(ds_path)
+    for glob_path in args.paths:
+        glob_path, slices = parse_ds_name(glob_path)
+        for ds_path in glob.glob(glob_path):
+            arrays = []
+            try:
+                print("Adding %s" % (ds_path))
+                dataset_as = open_dataset(ds_path)
 
-        except Exception as e:
-            print(type(e), e)
-            print("Didn't work, checking if this is multi-res...")
+            except Exception as e:
+                print(type(e), e)
+                print("Didn't work, checking if this is multi-res...")
 
-            scales = glob.glob(os.path.join(ds_path, "s*"))
-            if len(scales) == 0:
-                print(f"Couldn't read {ds_path}, skipping...")
-                raise e
-            print("Found scales %s" % ([os.path.relpath(s, ds_path) for s in scales],))
-            dataset_as = [
-                open_dataset(ds_path, os.path.relpath(scale_ds, ds_path)) for scale_ds in scales
-            ]
-        for a in dataset_as:
-            arrays.append(a)
+                scales = glob.glob(os.path.join(ds_path, "s*"))
+                if len(scales) == 0:
+                    print(f"Couldn't read {ds_path}, skipping...")
+                    raise e
+                print("Found scales %s" % ([os.path.relpath(s, ds_path) for s in scales],))
+                dataset_as = [
+                    open_dataset(ds_path, os.path.relpath(scale_ds, ds_path)) for scale_ds in scales
+                ]
+            for array, name in dataset_as:
+                if slices is not None:
+                    array.lazy_op(slices)
+                arrays.append((array, name))
 
-        with viewer.txn() as s:
-            for array, dataset in arrays:
-                add_layer(s, array, Path(dataset).name)
+            with viewer.txn() as s:
+                for array, dataset in arrays:
+                    add_layer(s, array, Path(dataset).name)
 
     url = str(viewer)
     print(url)
