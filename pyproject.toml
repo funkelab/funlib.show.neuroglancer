@@ -17,5 +17,5 @@ dependencies = [
     "numpy",
     "zarr",
     "funlib.geometry",
-    "funlib.persistence",
+    "funlib.persistence @ git+https://github.com/funkelab/funlib.persistence@array-overhaul",
 ]
