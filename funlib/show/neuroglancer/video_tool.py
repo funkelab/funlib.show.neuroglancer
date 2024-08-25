@@ -62,7 +62,6 @@ be rendered in several ways:
 
 from __future__ import print_function, division
 
-import argparse
 import bisect
 import math
 import os
@@ -71,7 +70,6 @@ import time
 import webbrowser
 
 import neuroglancer
-import json
 
 
 class RenderArgs():

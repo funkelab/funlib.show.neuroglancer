@@ -7,11 +7,8 @@ import glob
 import neuroglancer
 import os
 import webbrowser
-import numpy as np
-import zarr
-from itertools import chain
 from pathlib import Path
-
+import numpy as np  # noqa: F401 This import is used in the eval statement below
 
 
 def parse_ds_name(ds):
@@ -24,9 +21,6 @@ def parse_ds_name(ds):
     slices = eval("np.s_[" + slices)
 
     return ds, slices
-
-
-
 
 
 parser = argparse.ArgumentParser()
