@@ -60,6 +60,20 @@ def create_coordinate_space(
 
 
 def guess_shader_code(array: Array):
+    """
+    TODO: This function is not used yet.
+    It should make some reasonable guesses for basic visualization parameters.
+    Guess volume type (or read from optional metadata?):
+        - bool/uint32/uint64/int32/int64 -> Segmentation
+        - floats/int8/uint8 -> Image
+    Guess shader for Image volumes:
+        - 1 channel dimension:
+            - 1 channel -> grayscale (add shader options for color and threshold)
+            - 2 channels -> projected RGB (set B to 0 or 1 or R+G?)
+            - 3 channels -> RGB
+            - 4 channels -> projected RGB (PCA? Random linear combinations? Randomizable with "l" key?)
+        - multiple channel dimensions?:
+    """
     channel_dim_shapes = [
         array.shape[i]
         for i in range(len(array.axis_names))
@@ -220,7 +234,7 @@ def add_layer(
             shader, array.channel_dims, rgb_channels, color, value_scale_factor
         )
     else:
-        shader_code = guess_shader_code(array)
+        shader_code = None
 
     if opacity is not None:
         if shader_code is None:
