@@ -12,15 +12,21 @@ import numpy as np  # noqa: F401 This import is used in the eval statement below
 
 
 def parse_ds_name(ds):
-    tokens = ds.split("[")
+    if ":" in ds:
+        ds, *slices = ds.split(":")
+    else:
+        ds, *slices = ds.split("[")
 
-    if len(tokens) == 1:
+    if len(slices) == 0:
         return ds, None
-
-    ds, slices = tokens
-    slices = eval("np.s_[" + slices)
-
-    return ds, slices
+    elif len(slices) == 1:
+        slices = slices[0].strip("[]")
+        if len(slices) == 0:
+            slices = ":"
+        slices = eval(f"np.s_[{slices}]")
+        return ds, slices
+    else:
+        raise ValueError("Used multiple sets of brackets")
 
 
 parser = argparse.ArgumentParser()
