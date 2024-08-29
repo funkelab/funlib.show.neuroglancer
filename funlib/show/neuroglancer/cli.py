@@ -75,7 +75,7 @@ def main():
                     "Found scales %s" % ([os.path.relpath(s, ds_path) for s in scales],)
                 )
                 arrays = [([open_ds(scale_ds) for scale_ds in scales], ds_path)]
-                
+
             for array, _ in arrays:
                 if not isinstance(array, list):
                     array = [array]

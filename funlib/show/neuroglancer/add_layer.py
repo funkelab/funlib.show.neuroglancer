@@ -54,9 +54,12 @@ def create_coordinate_space(
     scales = interleave(list(array.voxel_size), 1, array.axis_names)
     offset = interleave(list(array.offset / array.voxel_size), 0, array.axis_names)
 
-    return neuroglancer.CoordinateSpace(
-        names=array.axis_names, units=units, scales=scales
-    ), offset
+    return (
+        neuroglancer.CoordinateSpace(
+            names=array.axis_names, units=units, scales=scales
+        ),
+        offset,
+    )
 
 
 def guess_shader_code(array: Array):
