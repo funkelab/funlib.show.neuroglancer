@@ -6,7 +6,7 @@ from funlib.persistence import Array
 rgb_shader_code = """
 void main() {
     emitRGB(
-        %f*vec3(
+        vec3(
             toNormalized(getDataValue(%i)),
             toNormalized(getDataValue(%i)),
             toNormalized(getDataValue(%i)))
@@ -38,7 +38,9 @@ void main() {
 }"""
 
 
-def create_coordinate_space(array: Array):
+def create_coordinate_space(
+    array: Array,
+) -> tuple[neuroglancer.CoordinateSpace, list[int]]:
     assert array.spatial_dims > 0
 
     def interleave(list, fill_value, axis_names):
@@ -50,23 +52,26 @@ def create_coordinate_space(array: Array):
 
     units = interleave(list(array.units), "", array.axis_names)
     scales = interleave(list(array.voxel_size), 1, array.axis_names)
+    offset = interleave(list(array.offset / array.voxel_size), 0, array.axis_names)
 
     return neuroglancer.CoordinateSpace(
         names=array.axis_names, units=units, scales=scales
-    )
+    ), offset
 
 
 def guess_shader_code(array: Array):
     channel_dim_shapes = [
-        array.shape[i] for i in range(array.dims) if "^" in array.axis_names[i]
+        array.shape[i]
+        for i in range(len(array.axis_names))
+        if "^" in array.axis_names[i]
     ]
     if len(channel_dim_shapes) == 0:
-        return None # default shader
-    
+        return None  # default shader
+
     if len(channel_dim_shapes) == 1:
         num_channels = channel_dim_shapes[0]
         if num_channels == 1:
-            return None # default shader
+            return None  # default shader
         if num_channels == 2:
             return projected_rgb_shader_code % num_channels
         if num_channels == 3:
@@ -190,26 +195,19 @@ def add_layer(
         for a in array:
             dimensions.append(create_coordinate_space(a))
 
-        # why only one offset, shouldn't that be a list?
-        voxel_offset = [0] * array.channel_dims + list(
-            array[0].roi.offset / array[0].voxel_size
-        )
-
         layer = ScalePyramid(
             [
                 neuroglancer.LocalVolume(
                     data=a.data, voxel_offset=voxel_offset, dimensions=array_dims
                 )
-                for a, array_dims in zip(array, dimensions)
+                for a, (array_dims, voxel_offset) in zip(array, dimensions)
             ]
         )
 
-    else:
-        voxel_offset = [0] * array.channel_dims + list(
-            array.roi.offset / array.voxel_size
-        )
+        array = array[0]
 
-        dimensions = create_coordinate_space(array)
+    else:
+        dimensions, voxel_offset = create_coordinate_space(array)
 
         layer = neuroglancer.LocalVolume(
             data=array.data,

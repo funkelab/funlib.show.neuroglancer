@@ -58,28 +58,30 @@ def main():
         print(f"Adding {glob_path} with slices {slices}")
         for ds_path in glob.glob(glob_path):
             ds_path = Path(ds_path)
-            arrays = []
             try:
                 print("Adding %s" % (ds_path))
                 array = open_ds(ds_path)
-                dataset_as = [(array, ds_path)]
+                arrays = [(array, ds_path)]
 
             except Exception as e:
                 print(type(e), e)
                 print("Didn't work, checking if this is multi-res...")
 
-                scales = glob.glob(ds_path / "s*")
+                scales = glob.glob(f"{ds_path}/s*")
                 if len(scales) == 0:
                     print(f"Couldn't read {ds_path}, skipping...")
                     raise e
                 print(
                     "Found scales %s" % ([os.path.relpath(s, ds_path) for s in scales],)
                 )
-                dataset_as = [(open_ds(scale_ds), scale_ds) for scale_ds in scales]
-            for array, name in dataset_as:
-                if slices is not None:
-                    array.lazy_op(slices)
-                arrays.append((array, name))
+                arrays = [([open_ds(scale_ds) for scale_ds in scales], ds_path)]
+                
+            for array, _ in arrays:
+                if not isinstance(array, list):
+                    array = [array]
+                for arr in array:
+                    if slices is not None:
+                        arr.lazy_op(slices)
 
             with viewer.txn() as s:
                 for array, dataset in arrays:
