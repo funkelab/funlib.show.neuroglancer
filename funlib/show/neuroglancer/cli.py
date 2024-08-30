@@ -29,26 +29,56 @@ def parse_ds_name(ds):
         raise ValueError("Used multiple sets of brackets")
 
 
+class SliceAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        dest = getattr(namespace, self.dest)
+        if dest is None:
+            dest = []
+            setattr(namespace, self.dest, dest)
+        assert isinstance(
+            dest, list
+        ), "Only one --slice/-s argument allowed to follow --dataset/-d"
+        assert (
+            len(dest) > 0
+        ), "The --slice/-s argument has to follow a --dataset/-d argument"
+        assert (
+            len(values) == 1
+        ), "The --slice/-s option should have exactly one argument"
+
+        dest[-1] = (dest[-1], values[0])
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "paths", type=str, nargs="+", help="The path to the container to show"
+    "--dataset",
+    "-d",
+    type=str,
+    nargs="+",
+    action="append",
+    help="The paths to the datasets to show",
+    dest="datasetslice",
+)
+parser.add_argument(
+    "--slices",
+    "-s",
+    type=str,
+    nargs="+",
+    action=SliceAction,
+    help="A slice operation to apply to the given datasets",
+    dest="datasetslice",
 )
 parser.add_argument(
     "--no-browser",
     "-n",
     type=bool,
-    nargs="?",
     default=False,
-    const=True,
     help="If set, do not open a browser, just print a URL",
 )
 parser.add_argument(
     "--bind-address",
     "-b",
     type=str,
-    nargs="?",
     default="0.0.0.0",
-    const=True,
     help="Bind address",
 )
 parser.add_argument("--port", type=int, default=0, help="The port to bind to.")
@@ -59,39 +89,48 @@ def main():
 
     neuroglancer.set_server_bind_address(args.bind_address, bind_port=args.port)
     viewer = neuroglancer.Viewer()
-    for glob_path in args.paths:
-        glob_path, slices = parse_ds_name(glob_path)
-        print(f"Adding {glob_path} with slices {slices}")
-        for ds_path in glob.glob(glob_path):
-            ds_path = Path(ds_path)
-            try:
-                print("Adding %s" % (ds_path))
-                array = open_ds(ds_path)
-                arrays = [(array, ds_path)]
 
-            except Exception as e:
-                print(type(e), e)
-                print("Didn't work, checking if this is multi-res...")
+    for datasetslice in args.datasetslice:
+        if isinstance(datasetslice, tuple):
+            datasets, slices = datasetslice[0], eval(f"np.s_[{datasetslice[1]}]")
+        elif isinstance(datasetslice, list):
+            datasets, slices = datasetslice, None
+        else:
+            raise NotImplementedError("Unreachable!")
 
-                scales = glob.glob(f"{ds_path}/s*")
-                if len(scales) == 0:
-                    print(f"Couldn't read {ds_path}, skipping...")
-                    raise e
-                print(
-                    "Found scales %s" % ([os.path.relpath(s, ds_path) for s in scales],)
-                )
-                arrays = [([open_ds(scale_ds) for scale_ds in scales], ds_path)]
+        for glob_path in datasets:
+            print(f"Adding {glob_path} with slices {slices}")
+            for ds_path in glob.glob(glob_path):
+                ds_path = Path(ds_path)
+                try:
+                    print("Adding %s" % (ds_path))
+                    array = open_ds(ds_path)
+                    arrays = [(array, ds_path)]
 
-            for array, _ in arrays:
-                if not isinstance(array, list):
-                    array = [array]
-                for arr in array:
-                    if slices is not None:
-                        arr.lazy_op(slices)
+                except Exception as e:
+                    print(type(e), e)
+                    print("Didn't work, checking if this is multi-res...")
 
-            with viewer.txn() as s:
-                for array, dataset in arrays:
-                    add_layer(s, array, Path(dataset).name)
+                    scales = glob.glob(f"{ds_path}/s*")
+                    if len(scales) == 0:
+                        print(f"Couldn't read {ds_path}, skipping...")
+                        raise e
+                    print(
+                        "Found scales %s"
+                        % ([os.path.relpath(s, ds_path) for s in scales],)
+                    )
+                    arrays = [([open_ds(scale_ds) for scale_ds in scales], ds_path)]
+
+                for array, _ in arrays:
+                    if not isinstance(array, list):
+                        array = [array]
+                    for arr in array:
+                        if slices is not None:
+                            arr.lazy_op(slices)
+
+                with viewer.txn() as s:
+                    for array, dataset in arrays:
+                        add_layer(s, array, Path(dataset).name)
 
     url = str(viewer)
     print(url)
