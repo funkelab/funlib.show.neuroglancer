@@ -26,17 +26,6 @@ Extra optional arguments are:
 - `--port`
 
 
-We also have slicing support (This command will select only the first channel of raw from every crop):
+We also have slicing support (This command will select only the first channel of raw from every crop, along with the ground truth and the 3rd 4th and 5th channel of the affs):
 
-`neuroglancer data.zarr/crop_*/raw[0]`
-
-This can lead to a conflict if you want to use glob expansion to select multiple arrays.
-Here it is unclear if you want to visualize the arrays `raw_1`, `raw_3`, `raw_4` and `raw_5`,
-or if you want to visualize channel `1345` of the array `raw_`.
-
-`neuroglancer data.zarr/raw_[1345]`
-
-To make this less ambiguous, we allow the use of the `:` character to separate the array glob from the
-slicing patter. So the following command will select the arrays `raw_1`, `raw_3`, `raw_4` and `raw_5`:
-
-`neuroglancer data.zarr/raw_[1345]:`
+`neuroglancer -d data.zarr/crop_*/raw -s [0] -d data.zarr/crop_*/gt -d data.zarr/crop_*/affs -s [3,4,5]`
