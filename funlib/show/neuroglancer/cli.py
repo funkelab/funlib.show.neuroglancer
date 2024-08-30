@@ -2,210 +2,135 @@
 
 from funlib.show.neuroglancer import add_layer
 from funlib.persistence import open_ds
-from funlib.geometry import Roi
 import argparse
 import glob
 import neuroglancer
 import os
 import webbrowser
-import numpy as np
-import zarr
+from pathlib import Path
+import numpy as np  # noqa: F401 This import is used in the eval statement below
 
-
-
-def to_slice(slice_str):
-
-    values = [int(x) for x in slice_str.split(':')]
-    if len(values) == 1:
-        return values[0]
-
-    return slice(*values)
 
 def parse_ds_name(ds):
-
-    tokens = ds.split('[')
-
-    if len(tokens) == 1:
-        return ds, None
-
-    ds, slices = tokens
-    slices = list(map(to_slice, slices.rstrip(']').split(',')))
-
-    return ds, slices
-
-class Project:
-
-    def __init__(self, array, dim, value):
-        self.array = array
-        self.dim = dim
-        self.value = value
-        self.shape = array.shape[:self.dim] + array.shape[self.dim + 1:]
-        self.dtype = array.dtype
-
-    def __getitem__(self, key):
-        slices = key[:self.dim] + (self.value,) + key[self.dim:]
-        ret = self.array[slices]
-        return ret
-
-def slice_dataset(a, slices):
-
-    dims = a.roi.dims
-
-    for d, s in list(enumerate(slices))[::-1]:
-
-        if isinstance(s, slice):
-            raise NotImplementedError("Slicing not yet implemented!")
-        else:
-            index = (s - a.roi.begin[d])//a.voxel_size[d]
-            a.data = Project(a.data, d, index)
-            a.roi = Roi(
-                a.roi.begin[:d] + a.roi.begin[d + 1:],
-                a.roi.shape[:d] + a.roi.shape[d + 1:])
-            a.voxel_size = a.voxel_size[:d] + a.voxel_size[d + 1:]
-
-    return a
-
-def open_dataset(f, ds):
-    original_ds = ds
-    ds, slices = parse_ds_name(ds)
-    slices_str = original_ds[len(ds):]
-
-    try:
-        dataset_as = []
-        if all(key.startswith("s") for key in zarr.open(f)[ds].keys()):
-            raise AttributeError("This group is a multiscale array!")
-        for key in zarr.open(f)[ds].keys():
-            dataset_as.extend(open_dataset(f, f"{ds}/{key}{slices_str}"))
-        return dataset_as
-    except AttributeError as e:
-        # dataset is an array, not a group
-        pass
-
-    print("ds    :", ds)
-    print("slices:", slices)
-    try:
-        zarr.open(f)[ds].keys()
-        is_multiscale = True
-    except:
-        is_multiscale = False
-
-    if not is_multiscale:
-        a = open_ds(f, ds)
-
-        if slices is not None:
-            a = slice_dataset(a, slices)
-
-        if a.data.dtype == np.int64 or a.data.dtype == np.int16:
-            print("Converting dtype in memory...")
-            a.data = a.data[:].astype(np.uint64)
-
-        return [(a, ds)]
+    if ":" in ds:
+        ds, *slices = ds.split(":")
     else:
-        return [([open_ds(f, f"{ds}/{key}") for key in zarr.open(f)[ds].keys()], ds)]
+        ds, *slices = ds.split("[")
+
+    if len(slices) == 0:
+        return ds, None
+    elif len(slices) == 1:
+        slices = slices[0].strip("[]")
+        if len(slices) == 0:
+            slices = ":"
+        slices = eval(f"np.s_[{slices}]")
+        return ds, slices
+    else:
+        raise ValueError("Used multiple sets of brackets")
+
+
+class SliceAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        dest = getattr(namespace, self.dest)
+        if dest is None:
+            dest = []
+            setattr(namespace, self.dest, dest)
+        assert isinstance(
+            dest, list
+        ), "Only one --slice/-s argument allowed to follow --dataset/-d"
+        assert (
+            len(dest) > 0
+        ), "The --slice/-s argument has to follow a --dataset/-d argument"
+        assert (
+            len(values) == 1
+        ), "The --slice/-s option should have exactly one argument"
+
+        dest[-1] = (dest[-1], values[0])
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--file',
-    '-f',
+    "--dataset",
+    "-d",
     type=str,
-    action='append',
-    help="The path to the container to show")
+    nargs="+",
+    action="append",
+    help="The paths to the datasets to show",
+    dest="datasetslice",
+)
 parser.add_argument(
-    '--datasets',
-    '-d',
+    "--slices",
+    "-s",
     type=str,
-    nargs='+',
-    action='append',
-    help="The datasets in the container to show")
+    nargs="+",
+    action=SliceAction,
+    help="A slice operation to apply to the given datasets",
+    dest="datasetslice",
+)
 parser.add_argument(
-    '--graphs',
-    '-g',
-    type=str,
-    nargs='+',
-    action='append',
-    help="The graphs in the container to show")
-parser.add_argument(
-    '--no-browser',
-    '-n',
+    "--no-browser",
+    "-n",
     type=bool,
-    nargs='?',
     default=False,
-    const=True,
-    help="If set, do not open a browser, just print a URL")
-
+    help="If set, do not open a browser, just print a URL",
+)
+parser.add_argument(
+    "--bind-address",
+    "-b",
+    type=str,
+    default="0.0.0.0",
+    help="Bind address",
+)
+parser.add_argument("--port", type=int, default=0, help="The port to bind to.")
 
 
 def main():
-
     args = parser.parse_args()
 
-    neuroglancer.set_server_bind_address('0.0.0.0')
+    neuroglancer.set_server_bind_address(args.bind_address, bind_port=args.port)
     viewer = neuroglancer.Viewer()
 
-    for f, datasets in zip(args.file, args.datasets):
+    for datasetslice in args.datasetslice:
+        if isinstance(datasetslice, tuple):
+            datasets, slices = datasetslice[0], eval(f"np.s_[{datasetslice[1]}]")
+        elif isinstance(datasetslice, list):
+            datasets, slices = datasetslice, None
+        else:
+            raise NotImplementedError("Unreachable!")
 
-        arrays = []
-        for ds in datasets:
-            try:
-
-                print("Adding %s, %s" % (f, ds))
-                dataset_as = open_dataset(f, ds)
-
-            except Exception as e:
-
-                print(type(e), e)
-                print("Didn't work, checking if this is multi-res...")
-
-                scales = glob.glob(os.path.join(f, ds, 's*'))
-                if len(scales) == 0:
-                    print(f"Couldn't read {ds}, skipping...")
-                    raise e
-                print("Found scales %s" % ([
-                    os.path.relpath(s, f)
-                    for s in scales
-                ],))
-                a = [
-                    open_dataset(f, os.path.relpath(scale_ds, f))
-                    for scale_ds in scales
-                ]
-            for a in dataset_as:
-                arrays.append(a)
-
-        with viewer.txn() as s:
-            for array, dataset in arrays:
-                add_layer(s, array, dataset)
-
-    if args.graphs:
-        for f, graphs in zip(args.file, args.graphs):
-
-            for graph in graphs:
-
-                graph_annotations = []
+        for glob_path in datasets:
+            print(f"Adding {glob_path} with slices {slices}")
+            for ds_path in glob.glob(glob_path):
+                ds_path = Path(ds_path)
                 try:
-                    ids = open_ds(f, graph + '-ids').data
-                    loc = open_ds(f, graph + '-locations').data
-                except:
-                    loc = open_ds(f, graph).data
-                    ids = None
-                dims = loc.shape[-1]
-                loc = loc[:].reshape((-1, dims))
-                if ids is None:
-                    ids = range(len(loc))
-                for i, l in zip(ids, loc):
-                    if dims == 2:
-                        l = np.concatenate([[0], l])
-                    graph_annotations.append(
-                        neuroglancer.EllipsoidAnnotation(
-                            center=l[::-1],
-                            radii=(5, 5, 5),
-                            id=i))
-                graph_layer = neuroglancer.AnnotationLayer(
-                    annotations=graph_annotations,
-                    voxel_size=(1, 1, 1))
+                    print("Adding %s" % (ds_path))
+                    array = open_ds(ds_path)
+                    arrays = [(array, ds_path)]
+
+                except Exception as e:
+                    print(type(e), e)
+                    print("Didn't work, checking if this is multi-res...")
+
+                    scales = glob.glob(f"{ds_path}/s*")
+                    if len(scales) == 0:
+                        print(f"Couldn't read {ds_path}, skipping...")
+                        raise e
+                    print(
+                        "Found scales %s"
+                        % ([os.path.relpath(s, ds_path) for s in scales],)
+                    )
+                    arrays = [([open_ds(scale_ds) for scale_ds in scales], ds_path)]
+
+                for array, _ in arrays:
+                    if not isinstance(array, list):
+                        array = [array]
+                    for arr in array:
+                        if slices is not None:
+                            arr.lazy_op(slices)
 
                 with viewer.txn() as s:
-                    s.layers.append(name='graph', layer=graph_layer)
+                    for array, dataset in arrays:
+                        add_layer(s, array, Path(dataset).name)
 
     url = str(viewer)
     print(url)
