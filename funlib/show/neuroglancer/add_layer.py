@@ -77,6 +77,7 @@ def guess_shader_code(array: Array):
             - 4 channels -> projected RGB (PCA? Random linear combinations? Randomizable with "l" key?)
         - multiple channel dimensions?:
     """
+    raise NotImplementedError()
     channel_dim_shapes = [
         array.shape[i]
         for i in range(len(array.axis_names))
