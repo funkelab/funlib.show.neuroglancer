@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from funlib.show.neuroglancer import add_layer
+import sys
 from funlib.persistence import open_ds
 import argparse
 import daisy
@@ -10,6 +10,15 @@ import os
 import webbrowser
 import numpy as np
 import zarr
+
+# # TODO: CHANGE BECAUSE ONCE MERGED, DON'T NEED THIS AS REDIR
+# local_path = os.path.abspath(
+#     os.path.join(os.path.dirname(__file__), '../funlib/show/neuroglancer')
+# )
+# sys.path.insert(0, local_path)
+
+# # Now you can import `add_layer` from your local file
+from funlib.show.neuroglancer import add_layer
 
 
 parser = argparse.ArgumentParser()
@@ -78,6 +87,7 @@ parser.add_argument(
     help="Volume types to use for each dataset",
 )
 parser.add_argument("--voxel_size", "-vs", type=str, default=None)
+parser.add_argument("--channel", "-c", type=int, default=None)
 
 args = parser.parse_args()
 
@@ -211,6 +221,12 @@ if args.voxel_size is not None:
 else:
     vs = None
 
+if args.channel is not None:
+    ch = int(args.channel)
+else: 
+    ch = None
+# ch = args.channel
+
 for f, datasets, shaders, volume_types in zip(
     args.file, args.datasets, args.shaders, args.volume_types
 ):
@@ -240,12 +256,12 @@ for f, datasets, shaders, volume_types in zip(
                 print(array, dataset, shader)
                 try:
                     add_layer(
-                        s, array, dataset, shader=shader, volume_type=vt, voxel_size=vs
+                        s, array, dataset, shader=shader, volume_type=vt, voxel_size=vs, channel=ch
                     )
                 except:
-                    add_layer(s, array, dataset, volume_type=vt, voxel_size=vs)
+                    add_layer(s, array, dataset, volume_type=vt, voxel_size=vs, channel=ch)
             else:
-                add_layer(s, array, dataset, volume_type=vt, voxel_size=vs)
+                add_layer(s, array, dataset, volume_type=vt, voxel_size=vs, channel=ch)
 
 if args.graphs:
     for f, graphs in zip(args.file, args.graphs):

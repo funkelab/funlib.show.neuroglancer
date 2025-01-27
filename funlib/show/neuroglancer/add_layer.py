@@ -38,6 +38,28 @@ void main() {
     emitRGBA(rgba);
 }"""
 
+adjustable_shader_code = """
+#uicontrol invlerp normalized
+#uicontrol vec3 color color(default="red")
+void main() {
+    emitRGB(
+    color * vec3(
+        normalized(getDataValue(%i)),
+        normalized(getDataValue(%i)),
+        normalized(getDataValue(%i)))
+    );
+}
+"""
+
+singlechannel_shader_code = """
+#uicontrol invlerp normalized
+#uicontrol int channel slider(min=0, max=%f)
+#uicontrol vec3 color color(default="red")
+void main() {
+	emitRGB(color * (normalized(getDataValue(%i))));
+}
+"""
+
 
 def generate_random_color():
     lower_bound = 0.5  # to prevent dim colors
@@ -330,9 +352,7 @@ def parse_dims(array):
     return dims, spatial_dims, channel_dims
 
 
-def create_coordinate_space(
-    array, spatial_dim_names, channel_dim_names, unit, voxel_size
-):
+def create_coordinate_space(array, spatial_dim_names, channel_dim_names, unit, voxel_size):
     dims, spatial_dims, channel_dims = parse_dims(array)
     assert spatial_dims > 0
 
@@ -350,6 +370,8 @@ def create_coordinate_space(
     print("Units    :", units)
     print("Scales   :", scales)
 
+    # print("Channel dim names: " + str(channel_dim_names))
+
     return neuroglancer.CoordinateSpace(names=names, units=units, scales=scales)
 
 
@@ -360,6 +382,7 @@ def create_shader_code(
     color=None,
     scale_factor=1.0,
     num_channels=None,
+    channel=None
 ):
     if shader is None:
         if channel_dims > 1:
@@ -388,6 +411,21 @@ def create_shader_code(
             color[2],
         )
 
+    if shader == "adjustable":
+        return adjustable_shader_code % (
+            rgb_channels[0],
+            rgb_channels[1],
+            rgb_channels[2],
+        )
+    
+    if shader == "singlechannel":
+        assert (
+            channel is not None
+        ), "Channel must be passed if using single channel shader"
+        return singlechannel_shader_code % (
+            int(num_channels),
+            channel
+        )
     if shader == "binary":
         return binary_shader_code
 
@@ -412,18 +450,20 @@ def create_shader_code(
         ), "Num channels must be passed if using additive shader"
         return create_shuffle_shader(num_channels)
 
+
+
     if shader == "random_color":
         random_color_css = generate_random_color()
         random_color_shader = f"""
-#uicontrol vec3 color color(default="{random_color_css}")
-#uicontrol float brightness slider(min=-1, max=1)
-#uicontrol float contrast slider(min=-3, max=3, step=0.01)
-void main() {{
-  emitRGB(color *
-          (255.0*toNormalized(getDataValue(0)) + brightness) *
-          exp(contrast));
-}}
-"""
+            #uicontrol vec3 color color(default="{random_color_css}")
+            #uicontrol float brightness slider(min=-1, max=1)
+            #uicontrol float contrast slider(min=-3, max=3, step=0.01)
+            void main() {{
+            emitRGB(color *
+                    (255.0*toNormalized(getDataValue(0)) + brightness) *
+                    exp(contrast));
+            }}
+            """
         return random_color_shader
 
 
@@ -439,9 +479,10 @@ def add_layer(
     color=None,
     visible=True,
     value_scale_factor=1.0,
-    units="nm",
+    units="mm",
     volume_type=None,
     voxel_size=None,
+    channel=None,
 ):
     """Add a layer to a neuroglancer context.
 
@@ -496,6 +537,9 @@ def add_layer(
                     single slider to adjust bias
                 'random_color': A random color between 0.5 and 1. Adds invlerp
                     sliders for brightness and contrast
+                'shuffle' : Dynamically shuffles channels and renders as rgb.
+                'adjustable' : similar to color, but allows adjusting range and color.
+                'single_channel' : renders a single channel as grayscale. Adds invlerp slider to adjust brightness
 
         rgb_channels:
 
@@ -537,6 +581,8 @@ def add_layer(
 
     if channel_dim_names is None:
         channel_dim_names = ["b", "c^"]
+    if channel is not None:
+        channel_dim_names += ["c'"]
     if spatial_dim_names is None:
         spatial_dim_names = ["t", "z", "y", "x"]
 
@@ -560,6 +606,7 @@ def add_layer(
         voxel_offset = [0] * channel_dims + list(
             array[0].roi.offset / array[0].voxel_size
         )
+        #     # added_data = a.data[channel:channel+1]
 
         layer = ScalePyramid(
             [
@@ -605,8 +652,13 @@ def add_layer(
         color,
         value_scale_factor,
         num_channels=num_channels,
+        channel=channel
     )
 
+    print(shader)
+
+    print(shader_code)
+    
     if opacity is not None:
         if shader_code is None:
             context.layers.append(
