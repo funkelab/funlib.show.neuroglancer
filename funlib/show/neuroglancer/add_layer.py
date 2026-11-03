@@ -119,9 +119,9 @@ def create_shader_code(
         )
 
     if shader == "color":
-        assert (
-            color is not None
-        ), "You have to pass argument 'color' to use the color shader"
+        assert color is not None, (
+            "You have to pass argument 'color' to use the color shader"
+        )
         return color_shader_code % (
             color[0],
             color[1],
