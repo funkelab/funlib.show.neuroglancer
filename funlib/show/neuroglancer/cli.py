@@ -35,15 +35,15 @@ class SliceAction(argparse.Action):
         if dest is None:
             dest = []
             setattr(namespace, self.dest, dest)
-        assert isinstance(
-            dest, list
-        ), "Only one --slice/-s argument allowed to follow --dataset/-d"
-        assert (
-            len(dest) > 0
-        ), "The --slice/-s argument has to follow a --dataset/-d argument"
-        assert (
-            len(values) == 1
-        ), "The --slice/-s option should have exactly one argument"
+        assert isinstance(dest, list), (
+            "Only one --slice/-s argument allowed to follow --dataset/-d"
+        )
+        assert len(dest) > 0, (
+            "The --slice/-s argument has to follow a --dataset/-d argument"
+        )
+        assert len(values) == 1, (
+            "The --slice/-s option should have exactly one argument"
+        )
 
         dest[-1] = (dest[-1], values[0])
 

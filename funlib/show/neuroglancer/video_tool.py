@@ -73,7 +73,6 @@ import neuroglancer
 
 
 class RenderArgs:
-
     def __init__(self):
 
         self.script = None
@@ -533,9 +532,9 @@ def run_render(create_viewer_func, args=RenderArgs()):
         keypoint["state"].gpu_memory_limit = args.gpu_memory_limit
         keypoint["state"].system_memory_limit = args.system_memory_limit
         keypoint["state"].concurrent_downloads = args.concurrent_downloads
-        keypoint["state"].cross_section_background_color = (
-            args.cross_section_background_color
-        )
+        keypoint[
+            "state"
+        ].cross_section_background_color = args.cross_section_background_color
     viewers = [create_viewer_func() for _ in range(args.shards)]
     for viewer in viewers:
         with viewer.config_state.txn() as s:
