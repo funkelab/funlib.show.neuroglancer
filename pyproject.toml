@@ -19,3 +19,13 @@ dependencies = [
     "funlib.geometry >= 0.3.0",
     "funlib.persistence >= 0.5.0",
 ]
+
+[dependency-groups]
+# Installed by `uv sync` (PEP 735); not part of the published package.
+# ruff is pinned with == until uv.lock is committed: it changes its rule
+# set between releases.
+dev = ["ruff==0.17.3"]
+
+[tool.ruff.lint]
+# ruff's pre-0.16 default rule set, pinned so it does not drift with releases
+select = ["E4", "E7", "E9", "F"]
